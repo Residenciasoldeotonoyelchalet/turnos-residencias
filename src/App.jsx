@@ -28,6 +28,7 @@ const TIPOS = [
   { id:"visita_medica",   label:"Visita Médica",                icon:"👨‍⚕️", color:"#34d399", maxSim:2 },
 ];
 const KINESIO_HORARIOS = ["10:00","10:30","11:00","11:30","18:00","18:30","19:00","19:30"];
+const ANALISIS_HORARIOS = ["07:00","07:30","08:00","08:30","09:00"];
 
 const MOTIVOS = [
   "Residente sedado/a","Residente con fiebre","Residente descansando",
@@ -301,14 +302,38 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
                 const selec = hi===h;
                 return (
                   <button key={h} onClick={()=>{if(!lleno){setHi(h);setHf(hFin);}}} style={{
-                    padding:"12px 8px", borderRadius:10, border:`2px solid ${selec?"#60a5fa":lleno?"#334155":"#1e293b"}`,
+                    padding:"14px 8px", borderRadius:10, border:`2px solid ${selec?"#60a5fa":lleno?"#334155":"#1e293b"}`,
                     background:selec?"#1e3a5f":lleno?"#0c1120":"#0f1824",
                     color:selec?"#60a5fa":lleno?"#334155":"#94a3b8",
-                    cursor:lleno?"not-allowed":"pointer", fontSize:13, fontFamily:"Georgia,serif",
+                    cursor:lleno?"not-allowed":"pointer", fontSize:16, fontFamily:"Georgia,serif",
                     opacity:lleno?0.5:1
                   }}>
                     <div style={{fontWeight:"bold"}}>{h}</div>
-                    <div style={{fontSize:11,marginTop:2}}>{lleno?"Completo":`${2-ocupados} lugar${2-ocupados===1?"":"es"}`}</div>
+                    <div style={{fontSize:13,marginTop:2}}>{lleno?"Completo":`${2-ocupados} lugar${2-ocupados===1?"":"es"}`}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : tipo?.id==="analisis_visita"||tipo?.id==="analisis_buscan" ? (
+          <>
+            <FL>Horario disponible (7:00 a 9:00)</FL>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              {ANALISIS_HORARIOS.map(h=>{
+                const hFin = `${String(Math.floor((toMin(h)+30)/60)).padStart(2,"0")}:${String((toMin(h)+30)%60).padStart(2,"0")}`;
+                const ocupados = turnos.filter(t=>t.residenteId===res?.id&&t.fecha===fecha&&t.tipo===tipo.id&&t.estado!=="cancelado"&&t.horaInicio===h).length;
+                const lleno = ocupados >= 2;
+                const selec = hi===h;
+                return (
+                  <button key={h} onClick={()=>{if(!lleno){setHi(h);setHf(hFin);}}} style={{
+                    padding:"14px 8px", borderRadius:10, border:`2px solid ${selec?"#f472b6":lleno?"#334155":"#1e293b"}`,
+                    background:selec?"#2d1a2e":lleno?"#0c1120":"#0f1824",
+                    color:selec?"#f472b6":lleno?"#334155":"#94a3b8",
+                    cursor:lleno?"not-allowed":"pointer", fontSize:16, fontFamily:"Georgia,serif",
+                    opacity:lleno?0.5:1
+                  }}>
+                    <div style={{fontWeight:"bold"}}>{h}</div>
+                    <div style={{fontSize:13,marginTop:2}}>{lleno?"Completo":`${2-ocupados} lugar${2-ocupados===1?"":"es"}`}</div>
                   </button>
                 );
               })}
