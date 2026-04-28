@@ -19,13 +19,16 @@ async function saveData(key, value) {
 
 const RESIDENCIAS = ["Sol de Otoño", "El Chalet"];
 const TIPOS = [
-  { id:"visita",        label:"Visita Familiar",  icon:"👥", color:"#4ade80", maxSim:3 },
-  { id:"salida",        label:"Salida",            icon:"🚶", color:"#fb923c", maxSim:1 },
-  { id:"kinesio",       label:"Kinesiología",      icon:"🏃", color:"#60a5fa", maxSim:2 },
-  { id:"medico",        label:"Turno Médico",      icon:"🩺", color:"#c084fc", maxSim:2 },
-  { id:"analisis",      label:"Análisis Clínicos", icon:"🔬", color:"#f472b6", maxSim:2 },
-  { id:"visita_medica", label:"Visita Médica",     icon:"👨‍⚕️", color:"#34d399", maxSim:2 },
+  { id:"visita",          label:"Visita Familiar",              icon:"👥", color:"#4ade80", maxSim:3 },
+  { id:"salida",          label:"Salida",                       icon:"🚶", color:"#fb923c", maxSim:5, noOverlap:true },
+  { id:"kinesio",         label:"Kinesiología",                 icon:"🏃", color:"#60a5fa", maxSim:2 },
+  { id:"medico",          label:"Turno Médico",                 icon:"🩺", color:"#c084fc", maxSim:2 },
+  { id:"analisis_visita", label:"Análisis - Bioquímico visita", icon:"🔬", color:"#f472b6", maxSim:2, horaMin:"07:00", horaMax:"09:00" },
+  { id:"analisis_buscan", label:"Análisis - Buscan al residente",icon:"🧪", color:"#e879f9", maxSim:2, horaMin:"07:00", horaMax:"09:00" },
+  { id:"visita_medica",   label:"Visita Médica",                icon:"👨‍⚕️", color:"#34d399", maxSim:2 },
 ];
+const KINESIO_HORARIOS = ["10:00","10:30","11:00","11:30","18:00","18:30","19:00","19:30"];
+
 const MOTIVOS = [
   "Residente sedado/a","Residente con fiebre","Residente descansando",
   "Visita médica urgente","Cuarentena / aislamiento",
@@ -137,8 +140,8 @@ function HomeView({setView}) {
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,gap:28}}>
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:52,marginBottom:10}}>🏡</div>
-        <h1 style={{fontSize:26,fontWeight:"normal",color:"#f8fafc",margin:0,letterSpacing:1.5}}>Sistema de Turnos</h1>
-        <p style={{color:"#475569",margin:"6px 0 0",fontSize:11,letterSpacing:3,textTransform:"uppercase"}}>Sol de Otoño · El Chalet</p>
+        <h1 style={{fontSize:32,fontWeight:"bold",color:"#f8fafc",margin:0,letterSpacing:1}}>Sistema de Turnos</h1>
+        <p style={{color:"#94a3b8",margin:"8px 0 0",fontSize:16,letterSpacing:2,textTransform:"uppercase"}}>Sol de Otoño · El Chalet</p>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:360}}>
         <HCard icon="📅" title="Reservar turno"     sub="Nuevo turno para un residente" color="#4ade80" onClick={()=>setView("familiar")}/>
@@ -175,14 +178,14 @@ function HCard({icon,title,sub,color,onClick}) {
   return (
     <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{
       background:h?"#131c2e":"#0f1824", border:`2px solid ${h?color+"44":"#1e293b"}`,
-      borderRadius:14,padding:"18px 20px",display:"flex",alignItems:"center",gap:14,
+      borderRadius:16,padding:"22px 20px",display:"flex",alignItems:"center",gap:16,
       cursor:"pointer",transition:"all 0.18s",width:"100%",textAlign:"left",
       transform:h?"translateY(-2px)":"none", boxShadow:h?`0 8px 28px ${color}18`:"none",
     }}>
-      <div style={{fontSize:32}}>{icon}</div>
+      <div style={{fontSize:40}}>{icon}</div>
       <div style={{flex:1}}>
-        <div style={{color,fontSize:16,fontWeight:"bold"}}>{title}</div>
-        <div style={{color:"#475569",fontSize:12,marginTop:2}}>{sub}</div>
+        <div style={{color,fontSize:20,fontWeight:"bold"}}>{title}</div>
+        <div style={{color:"#94a3b8",fontSize:15,marginTop:4}}>{sub}</div>
       </div>
       <div style={{color:"#1e3a5f",fontSize:18}}>›</div>
     </button>
@@ -214,14 +217,32 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
     if (!email.includes("@"))       { setErr("Ingresá un email válido"); return; }
     const dia = turnos.filter(t=>t.residenteId===res.id&&t.fecha===fecha&&t.estado!=="cancelado");
     const nuevo = {horaInicio:hi,horaFin:hf};
+    // Bloqueo por salida existente que se superpone
     const salBlq = dia.find(t=>t.tipo==="salida"&&overlaps(t,nuevo));
     if (salBlq) { setErr(`⚠️ ${res.nombre} tiene una salida ${salBlq.horaInicio}–${salBlq.horaFin}. No estará disponible.`); return; }
+
+    // Salidas: no pueden superponerse entre sí
     if (tipo.id==="salida") {
-      const conf = dia.find(t=>overlaps(t,nuevo));
-      if (conf) { const tp=TIPOS.find(x=>x.id===conf.tipo); setErr(`⚠️ Hay un turno de ${tp?.label} ${conf.horaInicio}–${conf.horaFin} que se superpone.`); return; }
+      const conf = dia.find(t=>t.tipo==="salida"&&overlaps(t,nuevo));
+      if (conf) { setErr(`⚠️ Ya hay una salida de ${conf.horaInicio} a ${conf.horaFin}. Cada salida debe tener horario distinto.`); return; }
+      const totalSalidas = dia.filter(t=>t.tipo==="salida").length;
+      if (totalSalidas>=5) { setErr(`⚠️ Ya hay 5 salidas registradas para este día (máximo permitido).`); return; }
     }
+
+    // Kinesiología: debe elegir horario fijo
+    if (tipo.id==="kinesio" && !KINESIO_HORARIOS.includes(hi)) {
+      setErr("⚠️ Por favor elegí uno de los horarios disponibles de kinesiología."); return;
+    }
+
+    // Análisis clínicos: solo de 7:00 a 9:00
+    if (tipo.horaMin && tipo.horaMax) {
+      if (toMin(hi) < toMin(tipo.horaMin) || toMin(hf) > toMin(tipo.horaMax)) {
+        setErr(`⚠️ Los análisis clínicos solo se pueden reservar entre ${tipo.horaMin} y ${tipo.horaMax}.`); return;
+      }
+    }
+
     const superp = dia.filter(t=>t.tipo===tipo.id&&overlaps(t,nuevo));
-    if (superp.length>=tipo.maxSim) { setErr(`⚠️ Ya hay ${tipo.maxSim} turno(s) de ${tipo.label} en ese horario.`); return; }
+    if (tipo.id!=="salida" && superp.length>=tipo.maxSim) { setErr(`⚠️ Ya hay ${tipo.maxSim} turno(s) de ${tipo.label} en ese horario.`); return; }
     const t = {
       id:Date.now().toString(), residenteId:res.id, residenteNombre:res.nombre,
       residencia:res.residencia, habitacion:res.habitacion,
@@ -246,7 +267,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
         <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
           {filtrados.map(r=>(
             <RBtn key={r.id} onClick={()=>{setRes(r);setStep(2);}}>
-              <div><div style={{fontWeight:"bold"}}>{r.nombre}</div><div style={{color:"#64748b",fontSize:12}}>{r.residencia}</div></div>
+              <div><div style={{fontWeight:"bold",fontSize:17}}>{r.nombre}</div><div style={{color:"#94a3b8",fontSize:15,marginTop:3}}>{r.residencia}</div></div>
             </RBtn>
           ))}
           {!filtrados.length&&<p style={{color:"#475569",textAlign:"center"}}>Sin resultados</p>}
@@ -258,8 +279,8 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {TIPOS.map(t=>(
             <RBtn key={t.id} onClick={()=>{setTipo(t);setStep(3);}} accent={t.color}>
-              <span style={{fontSize:26}}>{t.icon}</span>
-              <div><div style={{color:t.color,fontWeight:"bold"}}>{t.label}</div><div style={{color:"#475569",fontSize:12}}>Máx. {t.maxSim} simultáneo(s)</div></div>
+              <span style={{fontSize:34}}>{t.icon}</span>
+              <div><div style={{color:t.color,fontWeight:"bold",fontSize:17}}>{t.label}</div><div style={{color:"#94a3b8",fontSize:14,marginTop:3}}>Máx. {t.maxSim} simultáneo(s)</div></div>
             </RBtn>
           ))}
         </div>
@@ -268,10 +289,38 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
       {step===3&&<>
         <SL>Fecha y horario</SL>
         <FL>Fecha</FL><input type="date" value={fecha} min={hoyISO()} onChange={e=>setFecha(e.target.value)} style={IS}/>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div><FL>Desde</FL><select value={hi} onChange={e=>setHi(e.target.value)} style={IS}>{HORAS.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
-          <div><FL>Hasta</FL><select value={hf} onChange={e=>setHf(e.target.value)} style={IS}>{HORAS.filter(h=>toMin(h)>toMin(hi)).map(h=><option key={h} value={h}>{h}</option>)}</select></div>
-        </div>
+
+        {tipo?.id==="kinesio" ? (
+          <>
+            <FL>Elegí un horario disponible</FL>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              {KINESIO_HORARIOS.map(h=>{
+                const hFin = `${String(Math.floor((toMin(h)+40)/60)).padStart(2,"0")}:${String((toMin(h)+40)%60).padStart(2,"0")}`;
+                const ocupados = turnos.filter(t=>t.residenteId===res?.id&&t.fecha===fecha&&t.tipo==="kinesio"&&t.estado!=="cancelado"&&t.horaInicio===h).length;
+                const lleno = ocupados >= 2;
+                const selec = hi===h;
+                return (
+                  <button key={h} onClick={()=>{if(!lleno){setHi(h);setHf(hFin);}}} style={{
+                    padding:"12px 8px", borderRadius:10, border:`2px solid ${selec?"#60a5fa":lleno?"#334155":"#1e293b"}`,
+                    background:selec?"#1e3a5f":lleno?"#0c1120":"#0f1824",
+                    color:selec?"#60a5fa":lleno?"#334155":"#94a3b8",
+                    cursor:lleno?"not-allowed":"pointer", fontSize:13, fontFamily:"Georgia,serif",
+                    opacity:lleno?0.5:1
+                  }}>
+                    <div style={{fontWeight:"bold"}}>{h}</div>
+                    <div style={{fontSize:11,marginTop:2}}>{lleno?"Completo":`${2-ocupados} lugar${2-ocupados===1?"":"es"}`}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><FL>Desde</FL><select value={hi} onChange={e=>setHi(e.target.value)} style={IS}>{HORAS.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
+            <div><FL>Hasta</FL><select value={hf} onChange={e=>setHf(e.target.value)} style={IS}>{HORAS.filter(h=>toMin(h)>toMin(hi)).map(h=><option key={h} value={h}>{h}</option>)}</select></div>
+          </div>
+        )}
+
         <DispoMini turnos={turnos} residenteId={res?.id} fecha={fecha}/>
         <PBtn onClick={()=>setStep(4)} style={{marginTop:14}}>Continuar →</PBtn>
       </>}
@@ -446,12 +495,12 @@ function EnfermeriaView({turnos,setView}) {
               <div key={t.id} style={{background:"#0f1824",borderLeft:`4px solid ${tp?.color}`,borderRadius:"0 12px 12px 0",padding:"14px 16px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div>
-                    <div style={{fontWeight:"bold",fontSize:15}}>{t.residenteNombre}</div>
+                    <div style={{fontWeight:"bold",fontSize:18}}>{t.residenteNombre}</div>
                     <div style={{color:"#475569",fontSize:12}}>{t.residencia}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
-                    <div style={{color:tp?.color,fontSize:13,fontWeight:"bold"}}>{tp?.icon} {tp?.label}</div>
-                    <div style={{color:"#94a3b8",fontSize:13}}>🕐 {t.horaInicio}–{t.horaFin}</div>
+                    <div style={{color:tp?.color,fontSize:16,fontWeight:"bold"}}>{tp?.icon} {tp?.label}</div>
+                    <div style={{color:"#94a3b8",fontSize:16}}>🕐 {t.horaInicio}–{t.horaFin}</div>
                   </div>
                 </div>
                 <div style={{borderTop:"1px solid #1e293b",marginTop:10,paddingTop:8,fontSize:12,color:"#64748b"}}>
@@ -645,7 +694,7 @@ function TopBar({title,onBack}) {
   return (
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:22,paddingTop:8}}>
       <button onClick={onBack} style={{background:"#0f1824",border:"1px solid #1e293b",color:"#94a3b8",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:16}}>‹</button>
-      <h2 style={{margin:0,fontSize:19,fontWeight:"normal",color:"#f1f5f9"}}>{title}</h2>
+      <h2 style={{margin:0,fontSize:24,fontWeight:"bold",color:"#f1f5f9"}}>{title}</h2>
     </div>
   );
 }
@@ -653,7 +702,7 @@ function TabBar({tabs,active,setActive}) {
   return (
     <div style={{display:"flex",gap:8,marginBottom:20}}>
       {tabs.map(([id,label])=>(
-        <button key={id} onClick={()=>setActive(id)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:"none",cursor:"pointer",fontSize:12,fontWeight:"bold",fontFamily:"Georgia,serif",background:active===id?"#2563eb":"#0f1824",color:active===id?"#fff":"#475569"}}>{label}</button>
+        <button key={id} onClick={()=>setActive(id)} style={{flex:1,padding:"14px 4px",borderRadius:10,border:"none",cursor:"pointer",fontSize:16,fontWeight:"bold",fontFamily:"Georgia,serif",background:active===id?"#2563eb":"#0f1824",color:active===id?"#fff":"#94a3b8"}}>{label}</button>
       ))}
     </div>
   );
@@ -691,21 +740,21 @@ function Modal({children,onClose}) {
 function Tag({children,c}) {
   return <span style={{background:`${c}22`,color:c,borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>{children}</span>;
 }
-function SL({children}) { return <h3 style={{color:"#64748b",fontSize:11,textTransform:"uppercase",letterSpacing:2,margin:"0 0 14px",fontWeight:"normal"}}>{children}</h3>; }
-function FL({children}) { return <div style={{color:"#475569",fontSize:11,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{children}</div>; }
+function SL({children}) { return <h3 style={{color:"#94a3b8",fontSize:14,textTransform:"uppercase",letterSpacing:2,margin:"0 0 16px",fontWeight:"bold"}}>{children}</h3>; }
+function FL({children}) { return <div style={{color:"#94a3b8",fontSize:14,textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontWeight:"bold"}}>{children}</div>; }
 function ErrBox({children}) { return <div style={{color:"#f87171",background:"#450a0a",borderRadius:10,padding:12,marginTop:10,fontSize:13}}>{children}</div>; }
 function PBtn({children,onClick,style={},disabled=false}) {
   const [h,setH]=useState(false);
-  return <button onClick={onClick} disabled={disabled} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{width:"100%",padding:"13px 0",background:disabled?"#1e293b":h?"#1d4ed8":"#2563eb",color:disabled?"#475569":"#fff",border:"none",borderRadius:12,cursor:disabled?"not-allowed":"pointer",fontSize:14,fontWeight:"bold",transition:"background 0.15s",display:"block",fontFamily:"Georgia,serif",...style}}>{children}</button>;
+  return <button onClick={onClick} disabled={disabled} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{width:"100%",padding:"16px 0",background:disabled?"#1e293b":h?"#1d4ed8":"#2563eb",color:disabled?"#475569":"#fff",border:"none",borderRadius:14,cursor:disabled?"not-allowed":"pointer",fontSize:18,fontWeight:"bold",transition:"background 0.15s",display:"block",fontFamily:"Georgia,serif",...style}}>{children}</button>;
 }
 function GBtn({children,onClick,style={}}) {
-  return <button onClick={onClick} style={{width:"100%",padding:"11px 0",background:"none",border:"1px solid #1e293b",color:"#475569",borderRadius:12,cursor:"pointer",fontSize:13,fontFamily:"Georgia,serif",marginTop:8,...style}}>{children}</button>;
+  return <button onClick={onClick} style={{width:"100%",padding:"14px 0",background:"none",border:"2px solid #334155",color:"#94a3b8",borderRadius:14,cursor:"pointer",fontSize:17,fontFamily:"Georgia,serif",marginTop:10,...style}}>{children}</button>;
 }
 function RBtn({children,onClick,accent}) {
   const [h,setH]=useState(false);
-  return <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{background:h?"#131c2e":"#0f1824",border:`1px solid ${h&&accent?accent+"44":"#1e293b"}`,borderRadius:12,padding:"13px 16px",cursor:"pointer",textAlign:"left",color:"#e2e8f0",display:"flex",alignItems:"center",gap:12,transition:"all 0.15s",width:"100%"}}>{children}<span style={{marginLeft:"auto",color:"#1e3a5f"}}>›</span></button>;
+  return <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{background:h?"#131c2e":"#0f1824",border:`1px solid ${h&&accent?accent+"44":"#1e293b"}`,borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",color:"#e2e8f0",display:"flex",alignItems:"center",gap:14,transition:"all 0.15s",width:"100%"}}>{children}<span style={{marginLeft:"auto",color:"#475569",fontSize:22}}>›</span></button>;
 }
 function IBtn({children,onClick,c,bg}) {
   return <button onClick={onClick} style={{background:bg,color:c,border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:13}}>{children}</button>;
 }
-const IS={width:"100%",background:"#0a0f1a",border:"1px solid #1e293b",color:"#e2e8f0",borderRadius:10,padding:"11px 13px",fontSize:14,outline:"none",boxSizing:"border-box",marginBottom:10,fontFamily:"Georgia,serif"};
+const IS={width:"100%",background:"#0a0f1a",border:"2px solid #334155",color:"#f1f5f9",borderRadius:12,padding:"14px 16px",fontSize:18,outline:"none",boxSizing:"border-box",marginBottom:12,fontFamily:"Georgia,serif"};
