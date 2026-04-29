@@ -258,6 +258,10 @@ function FamiliarView({turnos,residents,saveTurnos,setView,horarios}) {
   const confirmar = async () => {
     if (!nombre.trim())             { setErr("Ingresá tu nombre"); return; }
     if (!email.includes("@"))       { setErr("Ingresá un email válido"); return; }
+    if (tipo?.id==="kinesio" && !(horarios?.kinesio||DEFAULT_KINESIO_HORARIOS).includes(hi)) { setErr("⚠️ Por favor elegí un horario de kinesiología en el paso anterior."); return; }
+    if ((tipo?.id==="analisis_visita"||tipo?.id==="analisis_buscan") && !(horarios?.analisis||DEFAULT_ANALISIS_HORARIOS).includes(hi)) { setErr("⚠️ Por favor elegí un horario de análisis en el paso anterior."); return; }
+    if (tipo?.id==="salida" && !hi) { setErr("⚠️ Por favor elegí el horario de salida en el paso anterior."); return; }
+    if (tipo?.id==="salida" && !hf) { setErr("⚠️ Por favor elegí el horario de regreso en el paso anterior."); return; }
     const dia = turnos.filter(t=>t.residenteId===res.id&&t.fecha===fecha&&t.estado!=="cancelado");
     const nuevo = {horaInicio:hi,horaFin:hf};
     // Bloqueo por salida existente que se superpone
@@ -284,10 +288,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView,horarios}) {
       if (totalSalidas>=5) { setErr(`⚠️ Ya hay 5 salidas registradas para este día (máximo permitido).`); return; }
     }
 
-    // Kinesiología: debe elegir horario fijo
-    if (tipo.id==="kinesio" && !KINESIO_HORARIOS.includes(hi)) {
-      setErr("⚠️ Por favor elegí uno de los horarios disponibles de kinesiología."); return;
-    }
+
 
     // Análisis clínicos: solo de 7:00 a 9:00
     if (tipo.horaMin && tipo.horaMax) {
@@ -551,7 +552,9 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
                 const cancelado=t.estado==="cancelado";
                 const pasado=new Date(`${t.fecha}T${t.horaInicio}:00`)<new Date();
                 const puede=!cancelado&&!pasado&&canCancel(t);
-                const hrs=!cancelado&&!pasado?Math.round((new Date(`${t.fecha}T${t.horaInicio}:00`)-new Date())/3600000):null;
+                const msRestantes = new Date(`${t.fecha}T${t.horaInicio}:00`) - new Date();
+                const hrs = !cancelado&&!pasado ? Math.max(0, Math.floor(msRestantes/3600000)) : null;
+                const mins = !cancelado&&!pasado ? Math.max(0, Math.floor((msRestantes%3600000)/60000)) : null;
                 return (
                   <div key={t.id} style={{
                     background:cancelado?"#0f1429":"#16213e",
@@ -579,7 +582,7 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
                     )}
                     {!cancelado&&!pasado&&hrs!==null&&hrs<=12&&(
                       <div style={{marginTop:8,background:"#1a1200",borderRadius:8,padding:"6px 10px",fontSize:12,color:"#fbbf24"}}>
-                        ⚠️ Quedan {hrs}h · Ya no podés cancelar (límite: 12hs antes)
+                        ⚠️ Quedan {hrs > 0 ? `${hrs}h` : `${mins}min`} · Ya no podés cancelar (límite: 12hs antes)
                       </div>
                     )}
                     {puede&&(
