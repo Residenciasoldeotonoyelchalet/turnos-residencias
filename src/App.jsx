@@ -27,8 +27,12 @@ const TIPOS = [
   { id:"analisis_buscan", label:"Análisis - Buscan al residente",icon:"🧪", color:"#e879f9", maxSim:2, horaMin:"07:00", horaMax:"09:00" },
   { id:"visita_medica",   label:"Visita Médica",                icon:"👨‍⚕️", color:"#34d399", maxSim:2 },
 ];
-const KINESIO_HORARIOS = ["10:00","10:30","11:00","11:30","18:00","18:30","19:00","19:30"];
-const ANALISIS_HORARIOS = ["07:00","07:30","08:00","08:30","09:00"];
+const DEFAULT_KINESIO_HORARIOS = ["10:00","10:30","11:00","11:30","18:00","18:30","19:00","19:30"];
+const DEFAULT_ANALISIS_HORARIOS = ["07:00","07:30","08:00","08:30","09:00"];
+const SALIDA_HORARIOS_MANANA = ["10:00","10:30","11:00","11:30","12:00"];
+const SALIDA_HORARIOS_TARDE  = ["18:00","18:30","19:00","19:30","20:00"];
+const SALIDA_HORARIOS_NOCHE  = ["22:00","22:30","23:00","23:30","00:00","00:30","01:00"];
+const SALIDA_HORARIOS_ALL    = [...SALIDA_HORARIOS_MANANA, ...SALIDA_HORARIOS_TARDE, ...SALIDA_HORARIOS_NOCHE];
 
 const MOTIVOS = [
   "Residente sedado/a","Residente con fiebre","Residente descansando",
@@ -95,24 +99,28 @@ export default function App() {
     (async()=>{
       const t = await loadData("turnos-v2",[]);
       const r = await loadData("residents-v2",defaultResidents);
-      setTurnos(t); setRes(r); setLoading(false);
+      const h = await loadData("horarios-v1",{kinesio: DEFAULT_KINESIO_HORARIOS, analisis: DEFAULT_ANALISIS_HORARIOS});
+      setTurnos(t); setRes(r); setHorarios(h); setLoading(false);
     })();
   },[]);
 
+  const [horarios, setHorarios] = useState({kinesio: DEFAULT_KINESIO_HORARIOS, analisis: DEFAULT_ANALISIS_HORARIOS});
+
   const saveTurnos = async v => { setTurnos(v); await saveData("turnos-v2",v); };
   const saveRes    = async v => { setRes(v);    await saveData("residents-v2",v); };
+  const saveHorarios = async v => { setHorarios(v); await saveData("horarios-v1",v); };
 
   if (loading) return (
-    <div style={{background:"#0a0f1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <span style={{color:"#334155",fontFamily:"Georgia,serif",letterSpacing:3,fontSize:13,textTransform:"uppercase"}}>Cargando…</span>
+    <div style={{background:"#1a1a2e",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <span style={{color:"#7eb8ff",fontFamily:"Georgia,serif",letterSpacing:3,fontSize:18,textTransform:"uppercase",fontWeight:"bold"}}>Cargando…</span>
     </div>
   );
 
-  const props = {turnos,residents,saveTurnos,saveResidents:saveRes,setView};
+  const props = {turnos,residents,saveTurnos,saveResidents:saveRes,setView,horarios,saveHorarios};
   return (
-    <div style={{fontFamily:"'Georgia',serif",background:"#0a0f1a",minHeight:"100vh",color:"#e2e8f0"}}>
+    <div style={{fontFamily:"'Georgia',serif",background:"#1a1a2e",minHeight:"100vh",color:"#e2e8f0"}}>
       {view==="home"       && <HomeView      setView={setView}/>}
-      {view==="familiar"   && <FamiliarView  {...props}/>}
+      {view==="familiar"   && <FamiliarView  {...props} horarios={horarios}/>}
       {view==="mis-turnos" && <MisTurnosView {...props}/>}
       {view==="enfermeria" && <EnfermeriaView {...props}/>}
       {view==="admin"      && <AdminView      {...props}/>}
@@ -141,8 +149,8 @@ function HomeView({setView}) {
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,gap:28}}>
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:52,marginBottom:10}}>🏡</div>
-        <h1 style={{fontSize:32,fontWeight:"bold",color:"#f8fafc",margin:0,letterSpacing:1}}>Sistema de Turnos</h1>
-        <p style={{color:"#94a3b8",margin:"8px 0 0",fontSize:16,letterSpacing:2,textTransform:"uppercase"}}>Sol de Otoño · El Chalet</p>
+        <h1 style={{fontSize:34,fontWeight:"bold",color:"#ffffff",margin:0,letterSpacing:1,textShadow:"0 2px 8px rgba(0,102,255,0.3)"}}>Sistema de Turnos</h1>
+        <p style={{color:"#7eb8ff",margin:"8px 0 0",fontSize:17,letterSpacing:2,textTransform:"uppercase",fontWeight:"bold"}}>Sol de Otoño · El Chalet</p>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:360}}>
         <HCard icon="📅" title="Reservar turno"     sub="Nuevo turno para un residente" color="#4ade80" onClick={()=>setView("familiar")}/>
@@ -159,7 +167,7 @@ function HomeView({setView}) {
       {pinModal && (
         <Modal onClose={()=>setPinModal(false)}>
           <div style={{fontSize:32,marginBottom:8}}>🔒</div>
-          <h3 style={{color:"#94a3b8",fontWeight:"normal",margin:"0 0 14px"}}>Ingresá el PIN</h3>
+          <h3 style={{color:"#b8d4ff",fontWeight:"normal",margin:"0 0 14px"}}>Ingresá el PIN</h3>
           <input
             type="password" value={pin} onChange={e=>setPin(e.target.value)}
             onKeyDown={e=>e.key==="Enter"&&checkPin()}
@@ -178,7 +186,7 @@ function HCard({icon,title,sub,color,onClick}) {
   const [h,setH]=useState(false);
   return (
     <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{
-      background:h?"#131c2e":"#0f1824", border:`2px solid ${h?color+"44":"#1e293b"}`,
+      background:h?"#1e3a6e":"#16213e", border:`2px solid ${h?color+"44":"#1e293b"}`,
       borderRadius:16,padding:"22px 20px",display:"flex",alignItems:"center",gap:16,
       cursor:"pointer",transition:"all 0.18s",width:"100%",textAlign:"left",
       transform:h?"translateY(-2px)":"none", boxShadow:h?`0 8px 28px ${color}18`:"none",
@@ -186,7 +194,7 @@ function HCard({icon,title,sub,color,onClick}) {
       <div style={{fontSize:40}}>{icon}</div>
       <div style={{flex:1}}>
         <div style={{color,fontSize:20,fontWeight:"bold"}}>{title}</div>
-        <div style={{color:"#94a3b8",fontSize:15,marginTop:4}}>{sub}</div>
+        <div style={{color:"#b8d4ff",fontSize:15,marginTop:4}}>{sub}</div>
       </div>
       <div style={{color:"#1e3a5f",fontSize:18}}>›</div>
     </button>
@@ -194,7 +202,7 @@ function HCard({icon,title,sub,color,onClick}) {
 }
 
 // ─── FAMILIAR: NUEVA RESERVA ──────────────────────────────────────
-function FamiliarView({turnos,residents,saveTurnos,setView}) {
+function FamiliarView({turnos,residents,saveTurnos,setView,horarios}) {
   const [step,setStep]   = useState(1);
   const [res,setRes]     = useState(null);
   const [tipo,setTipo]   = useState(null);
@@ -222,8 +230,20 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
     const salBlq = dia.find(t=>t.tipo==="salida"&&overlaps(t,nuevo));
     if (salBlq) { setErr(`⚠️ ${res.nombre} tiene una salida ${salBlq.horaInicio}–${salBlq.horaFin}. No estará disponible.`); return; }
 
-    // Salidas: no pueden superponerse entre sí
+    // Salidas: validar horario permitido y no superposición
     if (tipo.id==="salida") {
+      if (!hi) { setErr("⚠️ Elegí un horario de salida."); return; }
+      if (!hf) { setErr("⚠️ Elegí un horario de regreso."); return; }
+      if (!SALIDA_HORARIOS_ALL.includes(hi)) { setErr("⚠️ El horario de salida debe estar entre 10:00-12:00, 18:00-20:00 o 22:00-01:00."); return; }
+      if (!SALIDA_HORARIOS_ALL.includes(hf)) { setErr("⚠️ El horario de regreso debe estar dentro del rango permitido."); return; }
+      const hiM = toMin(hi) < 120 ? toMin(hi)+1440 : toMin(hi);
+      const hfM = toMin(hf) < 120 ? toMin(hf)+1440 : toMin(hf);
+      if (hfM - hiM < 30) { setErr("⚠️ Debe haber al menos 30 minutos entre la salida y el regreso."); return; }
+      // Bloquear horarios ya usados en TODA la residencia ese día (salida o regreso)
+      const turnosResidencia = turnos.filter(t=>t.tipo==="salida"&&t.fecha===fecha&&t.residencia===res.residencia&&t.estado!=="cancelado");
+      const horasOcupadas = turnosResidencia.flatMap(t=>[t.horaInicio,t.horaFin]);
+      if (horasOcupadas.includes(hi)) { setErr(`⚠️ El horario ${hi} ya está ocupado por otra salida en ${res.residencia}. No pueden coincidir entradas ni salidas.`); return; }
+      if (horasOcupadas.includes(hf)) { setErr(`⚠️ El horario de regreso ${hf} ya está ocupado por otra salida en ${res.residencia}. No pueden coincidir entradas ni salidas.`); return; }
       const conf = dia.find(t=>t.tipo==="salida"&&overlaps(t,nuevo));
       if (conf) { setErr(`⚠️ Ya hay una salida de ${conf.horaInicio} a ${conf.horaFin}. Cada salida debe tener horario distinto.`); return; }
       const totalSalidas = dia.filter(t=>t.tipo==="salida").length;
@@ -263,16 +283,20 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
       <TopBar title="Nueva Reserva" onBack={back}/>
 
       {step===1&&<>
-        <SL>¿Para qué residente?</SL>
-        <input placeholder="Buscar…" value={busq} onChange={e=>setBusq(e.target.value)} style={IS}/>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
-          {filtrados.map(r=>(
-            <RBtn key={r.id} onClick={()=>{setRes(r);setStep(2);}}>
-              <div><div style={{fontWeight:"bold",fontSize:17}}>{r.nombre}</div><div style={{color:"#94a3b8",fontSize:15,marginTop:3}}>{r.residencia}</div></div>
-            </RBtn>
-          ))}
-          {!filtrados.length&&<p style={{color:"#475569",textAlign:"center"}}>Sin resultados</p>}
-        </div>
+        <SL>Nombre del residente</SL>
+        <input
+          placeholder="Escribí el nombre completo…"
+          value={busq}
+          onChange={e=>{setBusq(e.target.value);setErr("");}}
+          style={IS}
+          autoComplete="off"
+        />
+        {err&&<ErrBox>{err}</ErrBox>}
+        <PBtn onClick={()=>{
+          const encontrado = residents.find(r=>r.nombre.toLowerCase().trim()===busq.toLowerCase().trim());
+          if (!encontrado) { setErr("⚠️ No encontramos ese residente. Verificá el nombre completo."); return; }
+          setRes(encontrado); setErr(""); setStep(2);
+        }} style={{marginTop:8}}>Continuar →</PBtn>
       </>}
 
       {step===2&&<>
@@ -281,7 +305,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
           {TIPOS.map(t=>(
             <RBtn key={t.id} onClick={()=>{setTipo(t);setStep(3);}} accent={t.color}>
               <span style={{fontSize:34}}>{t.icon}</span>
-              <div><div style={{color:t.color,fontWeight:"bold",fontSize:17}}>{t.label}</div><div style={{color:"#94a3b8",fontSize:14,marginTop:3}}>Máx. {t.maxSim} simultáneo(s)</div></div>
+              <div><div style={{color:t.color,fontWeight:"bold",fontSize:17}}>{t.label}</div><div style={{color:"#b8d4ff",fontSize:14,marginTop:3}}>Máx. {t.maxSim} simultáneo(s)</div></div>
             </RBtn>
           ))}
         </div>
@@ -295,7 +319,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
           <>
             <FL>Elegí un horario disponible</FL>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              {KINESIO_HORARIOS.map(h=>{
+              {(horarios?.kinesio||DEFAULT_KINESIO_HORARIOS).map(h=>{
                 const hFin = `${String(Math.floor((toMin(h)+40)/60)).padStart(2,"0")}:${String((toMin(h)+40)%60).padStart(2,"0")}`;
                 const ocupados = turnos.filter(t=>t.residenteId===res?.id&&t.fecha===fecha&&t.tipo==="kinesio"&&t.estado!=="cancelado"&&t.horaInicio===h).length;
                 const lleno = ocupados >= 2;
@@ -303,7 +327,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
                 return (
                   <button key={h} onClick={()=>{if(!lleno){setHi(h);setHf(hFin);}}} style={{
                     padding:"14px 8px", borderRadius:10, border:`2px solid ${selec?"#60a5fa":lleno?"#334155":"#1e293b"}`,
-                    background:selec?"#1e3a5f":lleno?"#0c1120":"#0f1824",
+                    background:selec?"#0052cc":lleno?"#0f1429":"#16213e",
                     color:selec?"#60a5fa":lleno?"#334155":"#94a3b8",
                     cursor:lleno?"not-allowed":"pointer", fontSize:16, fontFamily:"Georgia,serif",
                     opacity:lleno?0.5:1
@@ -319,7 +343,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
           <>
             <FL>Horario disponible (7:00 a 9:00)</FL>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-              {ANALISIS_HORARIOS.map(h=>{
+              {(horarios?.analisis||DEFAULT_ANALISIS_HORARIOS).map(h=>{
                 const hFin = `${String(Math.floor((toMin(h)+30)/60)).padStart(2,"0")}:${String((toMin(h)+30)%60).padStart(2,"0")}`;
                 const ocupados = turnos.filter(t=>t.residenteId===res?.id&&t.fecha===fecha&&t.tipo===tipo.id&&t.estado!=="cancelado"&&t.horaInicio===h).length;
                 const lleno = ocupados >= 2;
@@ -327,7 +351,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
                 return (
                   <button key={h} onClick={()=>{if(!lleno){setHi(h);setHf(hFin);}}} style={{
                     padding:"14px 8px", borderRadius:10, border:`2px solid ${selec?"#f472b6":lleno?"#334155":"#1e293b"}`,
-                    background:selec?"#2d1a2e":lleno?"#0c1120":"#0f1824",
+                    background:selec?"#3d1a4e":lleno?"#0f1429":"#16213e",
                     color:selec?"#f472b6":lleno?"#334155":"#94a3b8",
                     cursor:lleno?"not-allowed":"pointer", fontSize:16, fontFamily:"Georgia,serif",
                     opacity:lleno?0.5:1
@@ -339,10 +363,77 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
               })}
             </div>
           </>
+        ) : tipo?.id==="salida" ? (
+          <>
+            <FL>Horario de salida</FL>
+            <select value={hi} onChange={e=>{setHi(e.target.value);setHf("");}} style={IS}>
+              <option value="">-- Elegí hora de salida --</option>
+              {(() => {
+                const horasOcupadas = turnos.filter(t=>t.tipo==="salida"&&t.fecha===fecha&&t.residencia===res?.residencia&&t.estado!=="cancelado").flatMap(t=>[t.horaInicio,t.horaFin]);
+                const renderOpt = h => {
+                  const ocupado = horasOcupadas.includes(h);
+                  return <option key={h} value={h} disabled={ocupado}>{ocupado ? `${h} — ocupado` : h}</option>;
+                };
+                return <>
+                  <optgroup label="Mañana (10:00 - 12:00)">{SALIDA_HORARIOS_MANANA.map(renderOpt)}</optgroup>
+                  <optgroup label="Tarde (18:00 - 20:00)">{SALIDA_HORARIOS_TARDE.map(renderOpt)}</optgroup>
+                  <optgroup label="Noche (22:00 - 01:00)">{SALIDA_HORARIOS_NOCHE.map(renderOpt)}</optgroup>
+                </>;
+              })()}
+            </select>
+            <FL>Horario de regreso</FL>
+            <select value={hf} onChange={e=>setHf(e.target.value)} style={IS}>
+              <option value="">-- Elegí hora de regreso --</option>
+              {hi && (() => {
+                const hiMin = toMin(hi) < 120 ? toMin(hi)+1440 : toMin(hi);
+                const horasOcupadas = turnos.filter(t=>t.tipo==="salida"&&t.fecha===fecha&&t.residencia===res?.residencia&&t.estado!=="cancelado").flatMap(t=>[t.horaInicio,t.horaFin]);
+                const opciones = SALIDA_HORARIOS_ALL.filter(h => {
+                  const hMin = toMin(h) < 120 ? toMin(h)+1440 : toMin(h);
+                  return hMin - hiMin >= 30;
+                });
+                const renderOpt = h => {
+                  const ocupado = horasOcupadas.includes(h);
+                  return <option key={h} value={h} disabled={ocupado}>{ocupado ? `${h} — ocupado` : h}</option>;
+                };
+                const enManana = opciones.filter(h=>SALIDA_HORARIOS_MANANA.includes(h));
+                const enTarde  = opciones.filter(h=>SALIDA_HORARIOS_TARDE.includes(h));
+                const enNoche  = opciones.filter(h=>SALIDA_HORARIOS_NOCHE.includes(h));
+                return <>
+                  {enManana.length>0&&<optgroup label="Mañana (10:00-12:00)">{enManana.map(renderOpt)}</optgroup>}
+                  {enTarde.length>0 &&<optgroup label="Tarde (18:00-20:00)">{enTarde.map(renderOpt)}</optgroup>}
+                  {enNoche.length>0 &&<optgroup label="Noche (22:00-01:00)">{enNoche.map(renderOpt)}</optgroup>}
+                </>;
+              })()}
+            </select>
+          </>
         ) : (
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div><FL>Desde</FL><select value={hi} onChange={e=>setHi(e.target.value)} style={IS}>{HORAS.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
-            <div><FL>Hasta</FL><select value={hf} onChange={e=>setHf(e.target.value)} style={IS}>{HORAS.filter(h=>toMin(h)>toMin(hi)).map(h=><option key={h} value={h}>{h}</option>)}</select></div>
+            <div>
+              <FL>Desde</FL>
+              <select value={hi} onChange={e=>setHi(e.target.value)} style={IS}>
+                {HORAS.map(h=>{
+                  const ocupado = turnos.filter(t=>
+                    t.residenteId===res?.id && t.fecha===fecha &&
+                    t.tipo===tipo?.id && t.estado!=="cancelado" &&
+                    toMin(t.horaInicio)<=toMin(h) && toMin(h)<toMin(t.horaFin)
+                  ).length >= (tipo?.maxSim||99);
+                  return <option key={h} value={h} disabled={ocupado}>{ocupado ? `${h} — ocupado` : h}</option>;
+                })}
+              </select>
+            </div>
+            <div>
+              <FL>Hasta</FL>
+              <select value={hf} onChange={e=>setHf(e.target.value)} style={IS}>
+                {HORAS.filter(h=>toMin(h)>toMin(hi)).map(h=>{
+                  const ocupado = turnos.filter(t=>
+                    t.residenteId===res?.id && t.fecha===fecha &&
+                    t.tipo===tipo?.id && t.estado!=="cancelado" &&
+                    toMin(t.horaInicio)<toMin(h) && toMin(h)<=toMin(t.horaFin)
+                  ).length >= (tipo?.maxSim||99);
+                  return <option key={h} value={h} disabled={ocupado}>{ocupado ? `${h} — ocupado` : h}</option>;
+                })}
+              </select>
+            </div>
           </div>
         )}
 
@@ -365,10 +456,10 @@ function FamiliarView({turnos,residents,saveTurnos,setView}) {
         <div style={{textAlign:"center",padding:"50px 0"}}>
           <div style={{fontSize:60,marginBottom:12}}>✅</div>
           <h2 style={{color:"#4ade80",fontWeight:"normal",margin:"0 0 8px"}}>¡Reserva confirmada!</h2>
-          <p style={{color:"#94a3b8",fontSize:14,lineHeight:1.9}}>
+          <p style={{color:"#b8d4ff",fontSize:14,lineHeight:1.9}}>
             {tipo?.icon} {tipo?.label} para <b style={{color:"#e2e8f0"}}>{res?.nombre}</b><br/>
             {fmt(fecha)} · {hi} – {hf}<br/>
-            <span style={{color:"#475569",fontSize:12}}>📧 Confirmación enviada a {email}</span>
+            <span style={{color:"#7a9abf",fontSize:12}}>📧 Confirmación enviada a {email}</span>
           </p>
           <PBtn onClick={()=>{setStep(1);setRes(null);setTipo(null);setNombre("");setEmail("");setTel("");setObs("");setFecha(hoyISO());}} style={{marginTop:20}}>Nueva reserva</PBtn>
           <GBtn onClick={()=>setView("mis-turnos")} style={{marginTop:8}}>Ver mis turnos →</GBtn>
@@ -411,11 +502,11 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
       ):(
         <>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <span style={{color:"#64748b",fontSize:12}}>📧 {buscado}</span>
-            <button onClick={()=>{setBuscado("");setMail("");}} style={{background:"none",border:"none",color:"#475569",cursor:"pointer",fontSize:12}}>Cambiar</button>
+            <span style={{color:"#8ab4d4",fontSize:12}}>📧 {buscado}</span>
+            <button onClick={()=>{setBuscado("");setMail("");}} style={{background:"none",border:"none",color:"#7a9abf",cursor:"pointer",fontSize:12}}>Cambiar</button>
           </div>
           {!lista.length?(
-            <div style={{textAlign:"center",color:"#475569",padding:"50px 0"}}>
+            <div style={{textAlign:"center",color:"#7a9abf",padding:"50px 0"}}>
               <div style={{fontSize:40,marginBottom:10}}>📭</div>
               <p>Sin turnos para ese email</p>
             </div>
@@ -429,7 +520,7 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
                 const hrs=!cancelado&&!pasado?Math.round((new Date(`${t.fecha}T${t.horaInicio}:00`)-new Date())/3600000):null;
                 return (
                   <div key={t.id} style={{
-                    background:cancelado?"#0c1120":"#0f1824",
+                    background:cancelado?"#0f1429":"#16213e",
                     border:`1px solid ${cancelado?"#1e293b":tp?.color+"33"}`,
                     borderLeft:`4px solid ${cancelado?"#334155":tp?.color}`,
                     borderRadius:"0 12px 12px 0",padding:"14px 16px",
@@ -438,8 +529,8 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div>
                         <div style={{color:cancelado?"#475569":tp?.color,fontWeight:"bold",fontSize:14}}>{tp?.icon} {tp?.label}</div>
-                        <div style={{color:"#94a3b8",fontSize:13,marginTop:2}}>👤 {t.residenteNombre} · {t.residencia}</div>
-                        <div style={{color:"#64748b",fontSize:12,marginTop:2}}>📅 {fmt(t.fecha)} · {t.horaInicio}–{t.horaFin}</div>
+                        <div style={{color:"#b8d4ff",fontSize:13,marginTop:2}}>👤 {t.residenteNombre} · {t.residencia}</div>
+                        <div style={{color:"#8ab4d4",fontSize:12,marginTop:2}}>📅 {fmt(t.fecha)} · {t.horaInicio}–{t.horaFin}</div>
                       </div>
                       <div style={{flexShrink:0,marginLeft:8}}>
                         {cancelado&&<Tag c="#ef4444">Cancelado</Tag>}
@@ -476,7 +567,7 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
         <Modal onClose={()=>{setCanc(null);setMotivo("");}}>
           <div style={{fontSize:28,marginBottom:8}}>❌</div>
           <h3 style={{color:"#f87171",margin:"0 0 6px",fontWeight:"normal"}}>Cancelar reserva</h3>
-          <p style={{color:"#94a3b8",fontSize:12,margin:"0 0 14px"}}>
+          <p style={{color:"#b8d4ff",fontSize:12,margin:"0 0 14px"}}>
             {cancelando.tipoLabel} · {fmt(cancelando.fecha)} {cancelando.horaInicio}–{cancelando.horaFin}
           </p>
           <FL>Motivo (opcional)</FL>
@@ -509,7 +600,7 @@ function EnfermeriaView({turnos,setView}) {
         </select>
       </div>
       {!lista.length?(
-        <div style={{textAlign:"center",color:"#475569",padding:"60px 0"}}>
+        <div style={{textAlign:"center",color:"#7a9abf",padding:"60px 0"}}>
           <div style={{fontSize:44,marginBottom:10}}>📭</div><p>Sin turnos para este día</p>
         </div>
       ):(
@@ -517,18 +608,18 @@ function EnfermeriaView({turnos,setView}) {
           {lista.map(t=>{
             const tp=TIPOS.find(x=>x.id===t.tipo);
             return (
-              <div key={t.id} style={{background:"#0f1824",borderLeft:`4px solid ${tp?.color}`,borderRadius:"0 12px 12px 0",padding:"14px 16px"}}>
+              <div key={t.id} style={{background:"#16213e",borderLeft:`4px solid ${tp?.color}`,borderRadius:"0 12px 12px 0",padding:"14px 16px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div>
                     <div style={{fontWeight:"bold",fontSize:18}}>{t.residenteNombre}</div>
-                    <div style={{color:"#475569",fontSize:12}}>{t.residencia}</div>
+                    <div style={{color:"#7a9abf",fontSize:12}}>{t.residencia}</div>
                   </div>
                   <div style={{textAlign:"right"}}>
                     <div style={{color:tp?.color,fontSize:16,fontWeight:"bold"}}>{tp?.icon} {tp?.label}</div>
-                    <div style={{color:"#94a3b8",fontSize:16}}>🕐 {t.horaInicio}–{t.horaFin}</div>
+                    <div style={{color:"#b8d4ff",fontSize:16}}>🕐 {t.horaInicio}–{t.horaFin}</div>
                   </div>
                 </div>
-                <div style={{borderTop:"1px solid #1e293b",marginTop:10,paddingTop:8,fontSize:12,color:"#64748b"}}>
+                <div style={{borderTop:"1px solid #1e293b",marginTop:10,paddingTop:8,fontSize:12,color:"#8ab4d4"}}>
                   👤 {t.nombreFamiliar}{t.telefono?` · 📞 ${t.telefono}`:""}
                   {t.observaciones&&<div style={{marginTop:3}}>📝 {t.observaciones}</div>}
                 </div>
@@ -537,25 +628,25 @@ function EnfermeriaView({turnos,setView}) {
           })}
         </div>
       )}
-      <div style={{marginTop:20,background:"#0f1824",border:"1px solid #1e293b",borderRadius:12,padding:16,fontSize:13}}>
-        <b style={{color:"#94a3b8"}}>Resumen · {fmt(fecha)}</b>
-        {TIPOS.map(tp=>{const n=lista.filter(t=>t.tipo===tp.id).length;return n?<div key={tp.id} style={{marginTop:4,color:"#64748b"}}>{tp.icon} {tp.label}: <b style={{color:tp.color}}>{n}</b></div>:null;})}
-        <div style={{borderTop:"1px solid #1e293b",marginTop:8,paddingTop:8,color:"#64748b"}}>Total: <b style={{color:"#e2e8f0"}}>{lista.length}</b></div>
+      <div style={{marginTop:20,background:"#16213e",border:"1px solid #1e293b",borderRadius:12,padding:16,fontSize:13}}>
+        <b style={{color:"#b8d4ff"}}>Resumen · {fmt(fecha)}</b>
+        {TIPOS.map(tp=>{const n=lista.filter(t=>t.tipo===tp.id).length;return n?<div key={tp.id} style={{marginTop:4,color:"#8ab4d4"}}>{tp.icon} {tp.label}: <b style={{color:tp.color}}>{n}</b></div>:null;})}
+        <div style={{borderTop:"1px solid #1e293b",marginTop:8,paddingTop:8,color:"#8ab4d4"}}>Total: <b style={{color:"#e2e8f0"}}>{lista.length}</b></div>
       </div>
     </div>
   );
 }
 
 // ─── ADMIN ────────────────────────────────────────────────────────
-function AdminView({turnos,residents,saveTurnos,saveResidents,setView}) {
+function AdminView({turnos,residents,saveTurnos,saveResidents,setView,horarios,saveHorarios}) {
   const [tab,setTab]=useState("turnos");
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       <TopBar title="Administración" onBack={()=>setView("home")}/>
-      <TabBar tabs={[["turnos","📋 Turnos"],["residentes","👥 Residentes"]]} active={tab} setActive={setTab}/>
+      <TabBar tabs={[["turnos","📋 Turnos"],["residentes","👥 Residentes"],["config","⚙️ Horarios"]]} active={tab} setActive={setTab}/>
       {tab==="turnos"    &&<AdminTurnos    turnos={turnos}    saveTurnos={saveTurnos}/>}
       {tab==="residentes"&&<AdminResidentes residents={residents} saveResidents={saveResidents}/>}
-
+      {tab==="config"    &&<AdminHorarios  horarios={horarios} saveHorarios={saveHorarios} turnos={turnos}/>}
     </div>
   );
 }
@@ -590,22 +681,22 @@ function AdminTurnos({turnos,saveTurnos}) {
           {RESIDENCIAS.map(r=><option key={r} value={r}>{r}</option>)}
         </select>
       </div>
-      {!lista.length?<p style={{color:"#475569",textAlign:"center",padding:40}}>Sin turnos</p>:(
+      {!lista.length?<p style={{color:"#7a9abf",textAlign:"center",padding:40}}>Sin turnos</p>:(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {lista.map(t=>{
             const tp=TIPOS.find(x=>x.id===t.tipo);
             const cancelado=t.estado==="cancelado";
             return (
               <div key={t.id} style={{
-                background:cancelado?"#0c1120":"#0f1824",
+                background:cancelado?"#0f1429":"#16213e",
                 borderLeft:`4px solid ${cancelado?"#334155":tp?.color}`,
                 borderRadius:"0 10px 10px 0",padding:"12px 14px",opacity:cancelado?0.55:1
               }}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div style={{flex:1}}>
-                    <div style={{fontWeight:"bold",fontSize:14}}>{t.residenteNombre} <span style={{color:"#475569",fontSize:12}}>· {t.residencia}</span></div>
+                    <div style={{fontWeight:"bold",fontSize:14}}>{t.residenteNombre} <span style={{color:"#7a9abf",fontSize:12}}>· {t.residencia}</span></div>
                     <div style={{color:tp?.color,fontSize:12}}>{tp?.icon} {tp?.label} · {t.horaInicio}–{t.horaFin}</div>
-                    <div style={{color:"#64748b",fontSize:12}}>👤 {t.nombreFamiliar}{t.emailFamiliar?` · ${t.emailFamiliar}`:""}</div>
+                    <div style={{color:"#8ab4d4",fontSize:12}}>👤 {t.nombreFamiliar}{t.emailFamiliar?` · ${t.emailFamiliar}`:""}</div>
                     {cancelado&&t.motivoCancelacion&&<div style={{color:"#ef4444",fontSize:11,marginTop:2}}>❌ {t.motivoCancelacion} ({t.canceladoPor})</div>}
                   </div>
                   <div style={{flexShrink:0,marginLeft:8}}>
@@ -624,10 +715,10 @@ function AdminTurnos({turnos,saveTurnos}) {
         <Modal onClose={()=>{setCanc(null);setMotivo("");setLibre("");}}>
           <div style={{fontSize:28,marginBottom:6}}>❌</div>
           <h3 style={{color:"#f87171",margin:"0 0 4px",fontWeight:"normal"}}>Cancelar turno</h3>
-          <p style={{color:"#94a3b8",fontSize:12,margin:"0 0 14px",lineHeight:1.7}}>
+          <p style={{color:"#b8d4ff",fontSize:12,margin:"0 0 14px",lineHeight:1.7}}>
             {canc.residenteNombre} · {canc.tipoLabel}<br/>
             {fmt(canc.fecha)} · {canc.horaInicio}–{canc.horaFin}<br/>
-            <span style={{color:"#475569"}}>Notificación → {canc.emailFamiliar||"sin email"}</span>
+            <span style={{color:"#7a9abf"}}>Notificación → {canc.emailFamiliar||"sin email"}</span>
           </p>
           <FL>Motivo de cancelación *</FL>
           <select value={motivo} onChange={e=>setMotivo(e.target.value)} style={IS}>
@@ -645,6 +736,94 @@ function AdminTurnos({turnos,saveTurnos}) {
   );
 }
 
+
+function AdminHorarios({horarios,saveHorarios,turnos}) {
+  const [nuevoK,setNuevoK] = useState("");
+  const [nuevoA,setNuevoA] = useState("");
+  const [msg,setMsg]       = useState("");
+
+  const toMin2 = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
+
+  const tieneReservas = (tipo, hora) => {
+    return turnos.some(t => t.tipo===tipo && t.horaInicio===hora && t.estado!=="cancelado");
+  };
+
+  const agregarK = () => {
+    if (!nuevoK.match(/^\d{2}:\d{2}$/)) { setMsg("Formato inválido. Usá HH:MM (ej: 09:30)"); return; }
+    if (horarios.kinesio.includes(nuevoK)) { setMsg("Ese horario ya existe"); return; }
+    const sorted = [...horarios.kinesio, nuevoK].sort();
+    saveHorarios({...horarios, kinesio: sorted});
+    setNuevoK(""); setMsg("✅ Horario agregado");
+  };
+
+  const eliminarK = (h) => {
+    if (tieneReservas("kinesio", h)) { setMsg(`⚠️ Hay turnos reservados a las ${h}. Cancelalos primero.`); return; }
+    saveHorarios({...horarios, kinesio: horarios.kinesio.filter(x=>x!==h)});
+    setMsg("✅ Horario eliminado");
+  };
+
+  const agregarA = () => {
+    if (!nuevoA.match(/^\d{2}:\d{2}$/)) { setMsg("Formato inválido. Usá HH:MM (ej: 07:30)"); return; }
+    if (horarios.analisis.includes(nuevoA)) { setMsg("Ese horario ya existe"); return; }
+    const min = toMin2(nuevoA);
+    if (min < toMin2("07:00") || min > toMin2("09:00")) { setMsg("⚠️ Análisis solo de 07:00 a 09:00"); return; }
+    const sorted = [...horarios.analisis, nuevoA].sort();
+    saveHorarios({...horarios, analisis: sorted});
+    setNuevoA(""); setMsg("✅ Horario agregado");
+  };
+
+  const eliminarA = (h) => {
+    if (tieneReservas("analisis_visita", h) || tieneReservas("analisis_buscan", h)) {
+      setMsg(`⚠️ Hay turnos reservados a las ${h}. Cancelalos primero.`); return;
+    }
+    saveHorarios({...horarios, analisis: horarios.analisis.filter(x=>x!==h)});
+    setMsg("✅ Horario eliminado");
+  };
+
+  return (
+    <div>
+      {msg && <div style={{background: msg.startsWith("⚠️")?"#1a0a0a":"#0a1a0a", color: msg.startsWith("⚠️")?"#f87171":"#4ade80", borderRadius:10, padding:"10px 14px", marginBottom:14, fontSize:15}}>{msg}</div>}
+
+      {/* KINESIOLOGÍA */}
+      <div style={{background:"#16213e",borderRadius:14,padding:16,marginBottom:16}}>
+        <div style={{color:"#60a5fa",fontWeight:"bold",fontSize:17,marginBottom:12}}>🏃 Horarios de Kinesiología</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          {(horarios?.kinesio||[]).map(h=>(
+            <div key={h} style={{background:"#1a1a2e",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{color:"#e2e8f0",fontSize:16,fontWeight:"bold"}}>{h}</span>
+              <button onClick={()=>eliminarK(h)} style={{background:"#1a0a0a",color:"#f87171",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:13}}>✕</button>
+            </div>
+          ))}
+        </div>
+        <FL>Agregar horario (HH:MM)</FL>
+        <div style={{display:"flex",gap:8}}>
+          <input value={nuevoK} onChange={e=>setNuevoK(e.target.value)} placeholder="ej: 09:30" style={{...IS,marginBottom:0,flex:1}}/>
+          <button onClick={agregarK} style={{background:"#1e3a5f",color:"#60a5fa",border:"none",borderRadius:10,padding:"0 16px",cursor:"pointer",fontSize:16,fontWeight:"bold",fontFamily:"Georgia,serif"}}>+</button>
+        </div>
+      </div>
+
+      {/* ANÁLISIS */}
+      <div style={{background:"#16213e",borderRadius:14,padding:16}}>
+        <div style={{color:"#f472b6",fontWeight:"bold",fontSize:17,marginBottom:4}}>🔬 Horarios de Análisis Clínicos</div>
+        <div style={{color:"#7a9abf",fontSize:13,marginBottom:12}}>Solo entre 07:00 y 09:00</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+          {(horarios?.analisis||[]).map(h=>(
+            <div key={h} style={{background:"#1a1a2e",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{color:"#e2e8f0",fontSize:16,fontWeight:"bold"}}>{h}</span>
+              <button onClick={()=>eliminarA(h)} style={{background:"#1a0a0a",color:"#f87171",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:13}}>✕</button>
+            </div>
+          ))}
+        </div>
+        <FL>Agregar horario (HH:MM)</FL>
+        <div style={{display:"flex",gap:8}}>
+          <input value={nuevoA} onChange={e=>setNuevoA(e.target.value)} placeholder="ej: 08:30" style={{...IS,marginBottom:0,flex:1}}/>
+          <button onClick={agregarA} style={{background:"#2d1a2e",color:"#f472b6",border:"none",borderRadius:10,padding:"0 16px",cursor:"pointer",fontSize:16,fontWeight:"bold",fontFamily:"Georgia,serif"}}>+</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminResidentes({residents,saveResidents}) {
   const [ed,setEd]=useState(null);
   const [nv,setNv]=useState({nombre:"",residencia:RESIDENCIAS[0]});
@@ -657,14 +836,14 @@ function AdminResidentes({residents,saveResidents}) {
     <div>
       {residents.map(r=>(
         ed?.id===r.id?(
-          <div key={r.id} style={{background:"#0f1824",borderRadius:12,padding:14,marginBottom:10}}>
+          <div key={r.id} style={{background:"#16213e",borderRadius:12,padding:14,marginBottom:10}}>
             <F val={ed.nombre} onChange={v=>setEd({...ed,nombre:v})} ph="Nombre"/>
             <select value={ed.residencia} onChange={e=>setEd({...ed,residencia:e.target.value})} style={IS}>{RESIDENCIAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
             <div style={{display:"flex",gap:8}}><PBtn onClick={save} style={{flex:1,padding:"9px 0"}}>Guardar</PBtn><GBtn onClick={()=>setEd(null)} style={{flex:1,marginTop:0}}>Cancelar</GBtn></div>
           </div>
         ):(
-          <div key={r.id} style={{background:"#0f1824",borderRadius:12,padding:14,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div><div style={{fontWeight:"bold"}}>{r.nombre}</div><div style={{color:"#475569",fontSize:12}}>{r.residencia}</div></div>
+          <div key={r.id} style={{background:"#16213e",borderRadius:12,padding:14,marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontWeight:"bold"}}>{r.nombre}</div><div style={{color:"#7a9abf",fontSize:12}}>{r.residencia}</div></div>
             <div style={{display:"flex",gap:8}}>
               <IBtn onClick={()=>setEd({...r})} c="#60a5fa" bg="#0c1f36">✏️</IBtn>
               <IBtn onClick={()=>del(r.id)} c="#f87171" bg="#1a0a0a">🗑️</IBtn>
@@ -673,14 +852,14 @@ function AdminResidentes({residents,saveResidents}) {
         )
       ))}
       {modo?(
-        <div style={{background:"#0f1824",borderRadius:12,padding:14,marginTop:8}}>
+        <div style={{background:"#16213e",borderRadius:12,padding:14,marginTop:8}}>
           <FL>Nuevo residente</FL>
           <F val={nv.nombre} onChange={v=>setNv({...nv,nombre:v})} ph="Nombre completo"/>
           <select value={nv.residencia} onChange={e=>setNv({...nv,residencia:e.target.value})} style={IS}>{RESIDENCIAS.map(x=><option key={x} value={x}>{x}</option>)}</select>
           <div style={{display:"flex",gap:8}}><PBtn onClick={add} style={{flex:1,padding:"9px 0"}}>Agregar</PBtn><GBtn onClick={()=>setModo(false)} style={{flex:1,marginTop:0}}>Cancelar</GBtn></div>
         </div>
       ):(
-        <button onClick={()=>setModo(true)} style={{width:"100%",padding:14,background:"none",border:"2px dashed #1e293b",color:"#475569",borderRadius:12,cursor:"pointer",fontSize:14,marginTop:4}}>+ Agregar residente</button>
+        <button onClick={()=>setModo(true)} style={{width:"100%",padding:14,background:"none",border:"2px dashed #1e293b",color:"#7a9abf",borderRadius:12,cursor:"pointer",fontSize:14,marginTop:4}}>+ Agregar residente</button>
       )}
     </div>
   );
@@ -688,10 +867,10 @@ function AdminResidentes({residents,saveResidents}) {
 
 function AdminEmail() {
   return (
-    <div style={{background:"#0f1824",borderRadius:14,padding:20,fontSize:14,lineHeight:1.9}}>
+    <div style={{background:"#16213e",borderRadius:14,padding:20,fontSize:14,lineHeight:1.9}}>
       <div style={{fontSize:28,marginBottom:10}}>📧</div>
       <h3 style={{color:"#60a5fa",fontWeight:"normal",margin:"0 0 10px"}}>Configurar EmailJS</h3>
-      <p style={{color:"#94a3b8",fontSize:13,marginBottom:14}}>Para enviar emails automáticos a los familiares seguí estos pasos:</p>
+      <p style={{color:"#b8d4ff",fontSize:13,marginBottom:14}}>Para enviar emails automáticos a los familiares seguí estos pasos:</p>
       {[
         ["1","Creá cuenta gratis en ","emailjs.com"],
         ["2","Agregá un Email Service conectando el email de la residencia"],
@@ -701,13 +880,13 @@ function AdminEmail() {
       ].map(([n,txt,link])=>(
         <div key={n} style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
           <span style={{background:"#1e3a5f",color:"#60a5fa",borderRadius:8,padding:"2px 8px",fontSize:12,fontWeight:"bold",flexShrink:0}}>{n}</span>
-          <span style={{color:"#94a3b8",fontSize:13}}>{txt}{link&&<a href={`https://${link}`} target="_blank" rel="noreferrer" style={{color:"#60a5fa"}}>{link}</a>}</span>
+          <span style={{color:"#b8d4ff",fontSize:13}}>{txt}{link&&<a href={`https://${link}`} target="_blank" rel="noreferrer" style={{color:"#60a5fa"}}>{link}</a>}</span>
         </div>
       ))}
       <div style={{borderTop:"1px solid #1e293b",marginTop:14,paddingTop:14}}>
-        <div style={{color:"#64748b",fontSize:12,marginBottom:8}}>Variables para tus templates:</div>
+        <div style={{color:"#8ab4d4",fontSize:12,marginBottom:8}}>Variables para tus templates:</div>
         {["to_email","to_name","residente","residencia","tipo","fecha","hora_inicio","hora_fin","motivo","cancelado_por"].map(v=>(
-          <code key={v} style={{display:"inline-block",background:"#0a0f1a",color:"#4ade80",borderRadius:6,padding:"2px 8px",fontSize:11,margin:"2px 4px 2px 0"}}>{`{{${v}}}`}</code>
+          <code key={v} style={{display:"inline-block",background:"#1a1a2e",color:"#4ade80",borderRadius:6,padding:"2px 8px",fontSize:11,margin:"2px 4px 2px 0"}}>{`{{${v}}}`}</code>
         ))}
       </div>
     </div>
@@ -718,8 +897,8 @@ function AdminEmail() {
 function TopBar({title,onBack}) {
   return (
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:22,paddingTop:8}}>
-      <button onClick={onBack} style={{background:"#0f1824",border:"1px solid #1e293b",color:"#94a3b8",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:16}}>‹</button>
-      <h2 style={{margin:0,fontSize:24,fontWeight:"bold",color:"#f1f5f9"}}>{title}</h2>
+      <button onClick={onBack} style={{background:"#16213e",border:"1px solid #1e293b",color:"#b8d4ff",borderRadius:10,padding:"8px 13px",cursor:"pointer",fontSize:16}}>‹</button>
+      <h2 style={{margin:0,fontSize:26,fontWeight:"bold",color:"#ffffff"}}>{title}</h2>
     </div>
   );
 }
@@ -727,7 +906,7 @@ function TabBar({tabs,active,setActive}) {
   return (
     <div style={{display:"flex",gap:8,marginBottom:20}}>
       {tabs.map(([id,label])=>(
-        <button key={id} onClick={()=>setActive(id)} style={{flex:1,padding:"14px 4px",borderRadius:10,border:"none",cursor:"pointer",fontSize:16,fontWeight:"bold",fontFamily:"Georgia,serif",background:active===id?"#2563eb":"#0f1824",color:active===id?"#fff":"#94a3b8"}}>{label}</button>
+        <button key={id} onClick={()=>setActive(id)} style={{flex:1,padding:"14px 4px",borderRadius:10,border:"none",cursor:"pointer",fontSize:16,fontWeight:"bold",fontFamily:"Georgia,serif",background:active===id?"#0066ff":"#16213e",color:active===id?"#ffffff":"#a0c4ff"}}>{label}</button>
       ))}
     </div>
   );
@@ -739,8 +918,8 @@ function DispoMini({turnos,residenteId,fecha}) {
     <div style={{marginTop:12}}>
       <FL>Turnos ya reservados ese día</FL>
       {list.map(t=>{const tp=TIPOS.find(x=>x.id===t.tipo);return(
-        <div key={t.id} style={{background:"#0a0f1a",borderLeft:`3px solid ${tp?.color||"#64748b"}`,borderRadius:"0 8px 8px 0",padding:"5px 10px",marginBottom:4,fontSize:12,display:"flex",justifyContent:"space-between"}}>
-          <span>{tp?.icon} {tp?.label}</span><span style={{color:"#64748b"}}>{t.horaInicio}–{t.horaFin}</span>
+        <div key={t.id} style={{background:"#1a1a2e",borderLeft:`3px solid ${tp?.color||"#64748b"}`,borderRadius:"0 8px 8px 0",padding:"5px 10px",marginBottom:4,fontSize:12,display:"flex",justifyContent:"space-between"}}>
+          <span>{tp?.icon} {tp?.label}</span><span style={{color:"#8ab4d4"}}>{t.horaInicio}–{t.horaFin}</span>
         </div>
       );})}
     </div>
@@ -748,38 +927,38 @@ function DispoMini({turnos,residenteId,fecha}) {
 }
 function Resumen({items}) {
   return (
-    <div style={{background:"#0a0f1a",border:"1px solid #1e293b",borderRadius:12,padding:14,marginTop:12,fontSize:13,lineHeight:2}}>
-      {items.map(([k,v])=><div key={k}><b style={{color:"#64748b"}}>{k}:</b> <span style={{color:"#94a3b8"}}>{v}</span></div>)}
+    <div style={{background:"#1a1a2e",border:"1px solid #1e293b",borderRadius:12,padding:14,marginTop:12,fontSize:13,lineHeight:2}}>
+      {items.map(([k,v])=><div key={k}><b style={{color:"#8ab4d4"}}>{k}:</b> <span style={{color:"#b8d4ff"}}>{v}</span></div>)}
     </div>
   );
 }
 function Modal({children,onClose}) {
   return (
     <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
-      <div style={{background:"#0f1824",border:"1px solid #1e293b",borderRadius:16,padding:24,maxWidth:380,width:"100%",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:"#16213e",border:"1px solid #1e293b",borderRadius:16,padding:24,maxWidth:380,width:"100%",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
         {children}
       </div>
     </div>
   );
 }
 function Tag({children,c}) {
-  return <span style={{background:`${c}22`,color:c,borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:"bold",whiteSpace:"nowrap"}}>{children}</span>;
+  return <span style={{background:`${c}33`,color:c,borderRadius:8,padding:"5px 12px",fontSize:14,fontWeight:"bold",whiteSpace:"nowrap",border:`2px solid ${c}66`}}>{children}</span>;
 }
-function SL({children}) { return <h3 style={{color:"#94a3b8",fontSize:14,textTransform:"uppercase",letterSpacing:2,margin:"0 0 16px",fontWeight:"bold"}}>{children}</h3>; }
-function FL({children}) { return <div style={{color:"#94a3b8",fontSize:14,textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontWeight:"bold"}}>{children}</div>; }
-function ErrBox({children}) { return <div style={{color:"#f87171",background:"#450a0a",borderRadius:10,padding:12,marginTop:10,fontSize:13}}>{children}</div>; }
+function SL({children}) { return <h3 style={{color:"#7eb8ff",fontSize:15,textTransform:"uppercase",letterSpacing:2,margin:"0 0 16px",fontWeight:"bold"}}>{children}</h3>; }
+function FL({children}) { return <div style={{color:"#a0c4ff",fontSize:15,textTransform:"uppercase",letterSpacing:1,marginBottom:6,fontWeight:"bold"}}>{children}</div>; }
+function ErrBox({children}) { return <div style={{color:"#ff6b6b",background:"#3d0000",border:"2px solid #ff4444",borderRadius:10,padding:14,marginTop:10,fontSize:17,fontWeight:"bold"}}>{children}</div>; }
 function PBtn({children,onClick,style={},disabled=false}) {
   const [h,setH]=useState(false);
-  return <button onClick={onClick} disabled={disabled} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{width:"100%",padding:"16px 0",background:disabled?"#1e293b":h?"#1d4ed8":"#2563eb",color:disabled?"#475569":"#fff",border:"none",borderRadius:14,cursor:disabled?"not-allowed":"pointer",fontSize:18,fontWeight:"bold",transition:"background 0.15s",display:"block",fontFamily:"Georgia,serif",...style}}>{children}</button>;
+  return <button onClick={onClick} disabled={disabled} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{width:"100%",padding:"16px 0",background:disabled?"#2a2a3e":h?"#0052cc":"#0066ff",color:disabled?"#475569":"#fff",border:"none",borderRadius:14,cursor:disabled?"not-allowed":"pointer",fontSize:18,fontWeight:"bold",transition:"background 0.15s",display:"block",fontFamily:"Georgia,serif",...style}}>{children}</button>;
 }
 function GBtn({children,onClick,style={}}) {
-  return <button onClick={onClick} style={{width:"100%",padding:"14px 0",background:"none",border:"2px solid #334155",color:"#94a3b8",borderRadius:14,cursor:"pointer",fontSize:17,fontFamily:"Georgia,serif",marginTop:10,...style}}>{children}</button>;
+  return <button onClick={onClick} style={{width:"100%",padding:"14px 0",background:"none",border:"3px solid #4a9eff",color:"#a0c4ff",borderRadius:14,cursor:"pointer",fontSize:17,fontFamily:"Georgia,serif",marginTop:10,...style}}>{children}</button>;
 }
 function RBtn({children,onClick,accent}) {
   const [h,setH]=useState(false);
-  return <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{background:h?"#131c2e":"#0f1824",border:`1px solid ${h&&accent?accent+"44":"#1e293b"}`,borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",color:"#e2e8f0",display:"flex",alignItems:"center",gap:14,transition:"all 0.15s",width:"100%"}}>{children}<span style={{marginLeft:"auto",color:"#475569",fontSize:22}}>›</span></button>;
+  return <button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{background:h?"#1e3a6e":"#16213e",border:`1px solid ${h&&accent?accent+"44":"#1e293b"}`,borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",color:"#e2e8f0",display:"flex",alignItems:"center",gap:14,transition:"all 0.15s",width:"100%"}}>{children}<span style={{marginLeft:"auto",color:"#7a9abf",fontSize:22}}>›</span></button>;
 }
 function IBtn({children,onClick,c,bg}) {
   return <button onClick={onClick} style={{background:bg,color:c,border:"none",borderRadius:8,padding:"7px 10px",cursor:"pointer",fontSize:13}}>{children}</button>;
 }
-const IS={width:"100%",background:"#0a0f1a",border:"2px solid #334155",color:"#f1f5f9",borderRadius:12,padding:"14px 16px",fontSize:18,outline:"none",boxSizing:"border-box",marginBottom:12,fontFamily:"Georgia,serif"};
+const IS={width:"100%",background:"#1a1a2e",border:"2px solid #334155",color:"#f1f5f9",borderRadius:12,padding:"14px 16px",fontSize:18,outline:"none",boxSizing:"border-box",marginBottom:12,fontFamily:"Georgia,serif"};
