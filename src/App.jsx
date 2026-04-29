@@ -67,6 +67,7 @@ const defaultResidents = [
 ];
 
 const hoyISO = () => new Date().toISOString().slice(0,10);
+const normalizar = s => s.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
 const fmt    = iso => { const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 const toMin  = t => { const [h,m]=t.split(":").map(Number); return h*60+m; };
 const overlaps = (a,b) => toMin(a.horaInicio)<toMin(b.horaFin) && toMin(b.horaInicio)<toMin(a.horaFin);
@@ -145,6 +146,22 @@ function HomeView({setView}) {
     else { setPinErr(true); setPin(""); }
   };
 
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installed, setInstalled] = useState(false);
+
+  useEffect(()=>{
+    window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); setInstallPrompt(e); });
+    window.addEventListener("appinstalled", () => setInstalled(true));
+  },[]);
+
+  const instalar = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const {outcome} = await installPrompt.userChoice;
+    if (outcome==="accepted") setInstalled(true);
+    setInstallPrompt(null);
+  };
+
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,gap:28}}>
       <div style={{textAlign:"center"}}>
@@ -155,6 +172,23 @@ function HomeView({setView}) {
       <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:360}}>
         <HCard icon="📅" title="Reservar turno"     sub="Nuevo turno para un residente" color="#4ade80" onClick={()=>setView("familiar")}/>
         <HCard icon="📋" title="Mis turnos"          sub="Ver y cancelar mis reservas"   color="#fb923c" onClick={()=>setView("mis-turnos")}/>
+        {installPrompt && !installed && (
+          <button onClick={instalar} style={{
+            width:"100%", padding:"16px 20px", background:"#003d99",
+            border:"3px solid #4a9eff", borderRadius:16, cursor:"pointer",
+            display:"flex", alignItems:"center", gap:14, textAlign:"left",
+            fontFamily:"Georgia,serif"
+          }}>
+            <div style={{fontSize:36}}>📲</div>
+            <div style={{flex:1}}>
+              <div style={{color:"#7eb8ff",fontSize:18,fontWeight:"bold"}}>Instalar en el celular</div>
+              <div style={{color:"#a0c4ff",fontSize:14,marginTop:3}}>Guardala como app en tu pantalla</div>
+            </div>
+          </button>
+        )}
+        {installed && (
+          <div style={{textAlign:"center",color:"#4ade80",fontSize:15,padding:"8px 0"}}>✅ App instalada</div>
+        )}
         <div style={{borderTop:"1px solid #1e293b",paddingTop:12,marginTop:4}}>
           <p style={{color:"#334155",fontSize:11,textAlign:"center",letterSpacing:2,textTransform:"uppercase",margin:"0 0 10px"}}>Personal</p>
           <HCard icon="🏥" title="Panel de enfermería" sub="Turnos del día" color="#60a5fa" onClick={()=>abrirPersonal("enfermeria")}/>
@@ -293,7 +327,7 @@ function FamiliarView({turnos,residents,saveTurnos,setView,horarios}) {
         />
         {err&&<ErrBox>{err}</ErrBox>}
         <PBtn onClick={()=>{
-          const encontrado = residents.find(r=>r.nombre.toLowerCase().trim()===busq.toLowerCase().trim());
+          const encontrado = residents.find(r=>normalizar(r.nombre)===normalizar(busq));
           if (!encontrado) { setErr("⚠️ No encontramos ese residente. Verificá el nombre completo."); return; }
           setRes(encontrado); setErr(""); setStep(2);
         }} style={{marginTop:8}}>Continuar →</PBtn>
@@ -913,7 +947,7 @@ function TabBar({tabs,active,setActive}) {
 }
 function DispoMini({turnos,residenteId,fecha}) {
   const list=turnos.filter(t=>t.residenteId===residenteId&&t.fecha===fecha&&t.estado!=="cancelado");
-  if (!list.length) return <p style={{color:"#4ade80",fontSize:12,marginTop:8}}>✅ Sin turnos ese día</p>;
+  if (!list.length) return null;
   return (
     <div style={{marginTop:12}}>
       <FL>Turnos ya reservados ese día</FL>
