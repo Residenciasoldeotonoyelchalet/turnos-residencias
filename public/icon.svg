@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 680">
+  <defs>
+    <clipPath id="cc">
+      <circle cx="340" cy="340" r="310"/>
+    </clipPath>
+  </defs>
+  <circle cx="340" cy="340" r="310" fill="#1a6b3a"/>
+  <path d="M340 340 L650 340 L650 30 L340 30 Z" fill="#f5c200" clip-path="url(#cc)"/>
+  <polygon points="340,130 210,240 470,240" fill="#ffffff"/>
+  <rect x="235" y="240" width="210" height="140" fill="#ffffff"/>
+  <rect x="307" y="310" width="66" height="70" fill="#1a6b3a" rx="4"/>
+  <rect x="252" y="262" width="50" height="44" fill="#f5c200" rx="4"/>
+  <rect x="378" y="262" width="50" height="44" fill="#f5c200" rx="4"/>
+  <rect x="30" y="395" width="620" height="80" fill="#ffffff" clip-path="url(#cc)"/>
+  <text x="340" y="428" text-anchor="middle" font-family="Georgia, serif" font-size="22" font-weight="700" fill="#f5c200" letter-spacing="2">SOL DE OTOÑO</text>
+  <text x="340" y="458" text-anchor="middle" font-family="Georgia, serif" font-size="20" font-weight="700" fill="#1a6b3a" letter-spacing="2">Y EL CHALET</text>
+  <rect x="30" y="492" width="620" height="58" fill="#f5c200" clip-path="url(#cc)"/>
+  <text x="340" y="530" text-anchor="middle" font-family="Georgia, serif" font-size="28" font-weight="700" fill="#1a6b3a" letter-spacing="6">TURNOS</text>
+  <circle cx="340" cy="340" r="308" fill="none" stroke="#ffffff" stroke-width="6"/>
+</svg>
