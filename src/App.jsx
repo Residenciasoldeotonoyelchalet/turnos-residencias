@@ -278,6 +278,14 @@ function FamiliarView({turnos,residents,saveTurnos,setView,horarios,bloqueos}) {
   const [err,setErr]     = useState("");
   const [busq,setBusq]   = useState("");
 
+  // Ensure hf is always after hi
+  useEffect(()=>{
+    if (toMin(hf) <= toMin(hi)) {
+      const nextIdx = HORAS.indexOf(hi) + 1;
+      setHf(nextIdx < HORAS.length ? HORAS[nextIdx] : "23:00");
+    }
+  }, [hi]);
+
   const filtrados = residents.filter(r=>
     r.nombre.toLowerCase().includes(busq.toLowerCase())||
     r.residencia.toLowerCase().includes(busq.toLowerCase())
@@ -294,14 +302,24 @@ function FamiliarView({turnos,residents,saveTurnos,setView,horarios,bloqueos}) {
     const turnoDateTime = new Date(`${fecha}T${hi}:00`);
     const horasHastaElTurno = (turnoDateTime - new Date()) / 3600000;
     if (horasHastaElTurno < 12) { setErr(`⚠️ Las reservas deben hacerse con al menos 12 horas de anticipación. Este turno comienza en ${Math.round(horasHastaElTurno)}hs.`); return; }
+    // Validar duración máxima para visitas (2 horas)
+    if (tipo.id==="visita") {
+      const duracion = toMin(hf) - toMin(hi);
+      if (duracion <= 0) { setErr("⚠️ El horario de fin debe ser posterior al de inicio."); return; }
+      if (duracion > 120) { setErr("⚠️ Las visitas no pueden durar más de 2 horas."); return; }
+    }
+
     // Validar bloqueos de horario
-    const bloqueoActivo = (bloqueos||[]).find(b =>
-      b.residencia === res.residencia &&
-      b.fecha === fecha &&
-      b.estado !== "eliminado" &&
-      toMin(b.horaInicio) < toMin(hf) &&
-      toMin(b.horaFin) > toMin(hi)
-    );
+    const hiMin2 = toMin(hi);
+    const hfMin2 = toMin(hf) <= toMin(hi) ? toMin(hf) + 1440 : toMin(hf);
+    const bloqueoActivo = (bloqueos||[]).find(b => {
+      if (b.residencia !== res.residencia) return false;
+      if (b.fecha !== fecha) return false;
+      if (b.estado === "eliminado") return false;
+      const bIni = toMin(b.horaInicio);
+      const bFin = toMin(b.horaFin) <= toMin(b.horaInicio) ? toMin(b.horaFin)+1440 : toMin(b.horaFin);
+      return bIni < hfMin2 && bFin > hiMin2;
+    });
     if (bloqueoActivo) { setErr(`⚠️ Ese horario está bloqueado en ${res.residencia}: "${bloqueoActivo.motivo}" (${bloqueoActivo.horaInicio}–${bloqueoActivo.horaFin}). No se pueden hacer reservas en ese rango.`); return; }
     const dia = turnos.filter(t=>t.residenteId===res.id&&t.fecha===fecha&&t.estado!=="cancelado");
     const nuevo = {horaInicio:hi,horaFin:hf};
