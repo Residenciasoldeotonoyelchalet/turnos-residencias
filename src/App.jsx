@@ -10,11 +10,25 @@ const TEMPLATE_CANCEL      = "template_m4ybolv";
 // ══════════════════════════════════════════════════════════════════
 
 async function loadData(key, fallback) {
-  try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : fallback; }
-  catch { return fallback; }
+  try {
+    // Try window.storage first (Claude environment)
+    if (window.storage) {
+      const r = await window.storage.get(key);
+      return r ? JSON.parse(r.value) : fallback;
+    }
+    // Fallback to localStorage
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch { return fallback; }
 }
 async function saveData(key, value) {
-  try { await window.storage.set(key, JSON.stringify(value)); } catch {}
+  try {
+    if (window.storage) {
+      await window.storage.set(key, JSON.stringify(value));
+    }
+    // Always also save to localStorage as backup
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
 }
 
 const RESIDENCIAS = ["Sol de Otoño", "El Chalet"];
@@ -101,15 +115,18 @@ export default function App() {
       const t = await loadData("turnos-v2",[]);
       const r = await loadData("residents-v2",defaultResidents);
       const h = await loadData("horarios-v1",{kinesio: DEFAULT_KINESIO_HORARIOS, analisis: DEFAULT_ANALISIS_HORARIOS});
-      setTurnos(t); setRes(r); setHorarios(h); setLoading(false);
+      const b = await loadData("bloqueos-v1",[]);
+      setTurnos(t); setRes(r); setHorarios(h); setBloqueos(b); setLoading(false);
     })();
   },[]);
 
   const [horarios, setHorarios] = useState({kinesio: DEFAULT_KINESIO_HORARIOS, analisis: DEFAULT_ANALISIS_HORARIOS});
+  const [bloqueos, setBloqueos] = useState([]);
 
   const saveTurnos = async v => { setTurnos(v); await saveData("turnos-v2",v); };
   const saveRes    = async v => { setRes(v);    await saveData("residents-v2",v); };
   const saveHorarios = async v => { setHorarios(v); await saveData("horarios-v1",v); };
+  const saveBloqueos = async v => { setBloqueos(v); await saveData("bloqueos-v1",v); };
 
   if (loading) return (
     <div style={{background:"#1a1a2e",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -117,11 +134,11 @@ export default function App() {
     </div>
   );
 
-  const props = {turnos,residents,saveTurnos,saveResidents:saveRes,setView,horarios,saveHorarios};
+  const props = {turnos,residents,saveTurnos,saveResidents:saveRes,setView,horarios,saveHorarios,bloqueos,saveBloqueos};
   return (
     <div style={{fontFamily:"'Georgia',serif",background:"#1a1a2e",minHeight:"100vh",color:"#e2e8f0"}}>
       {view==="home"       && <HomeView      setView={setView}/>}
-      {view==="familiar"   && <FamiliarView  {...props} horarios={horarios}/>}
+      {view==="familiar"   && <FamiliarView  {...props} horarios={horarios} bloqueos={bloqueos}/>}
       {view==="mis-turnos" && <MisTurnosView {...props}/>}
       {view==="enfermeria" && <EnfermeriaView {...props}/>}
       {view==="admin"      && <AdminView      {...props}/>}
@@ -189,6 +206,17 @@ function HomeView({setView}) {
         {installed && (
           <div style={{textAlign:"center",color:"#4ade80",fontSize:15,padding:"8px 0"}}>✅ App instalada</div>
         )}
+        {!installPrompt && !installed && (
+          <div style={{background:"#16213e",border:"2px solid #334d6e",borderRadius:14,padding:16,width:"100%",maxWidth:360}}>
+            <div style={{color:"#7eb8ff",fontWeight:"bold",fontSize:16,marginBottom:10}}>📲 Instalá la app en tu celular</div>
+            <div style={{color:"#b8d4ff",fontSize:15,marginBottom:8}}>
+              <b style={{color:"#f5c200"}}>Android:</b> Tocá los 3 puntitos del navegador → "Agregar a pantalla de inicio"
+            </div>
+            <div style={{color:"#b8d4ff",fontSize:15}}>
+              <b style={{color:"#4ade80"}}>iPhone:</b> Abrí en Safari → tocá el botón compartir ↑ → "Agregar a pantalla de inicio"
+            </div>
+          </div>
+        )}
         <div style={{borderTop:"1px solid #1e293b",paddingTop:12,marginTop:4}}>
           <p style={{color:"#334155",fontSize:11,textAlign:"center",letterSpacing:2,textTransform:"uppercase",margin:"0 0 10px"}}>Personal</p>
           <HCard icon="🏥" title="Panel de enfermería" sub="Turnos del día" color="#60a5fa" onClick={()=>abrirPersonal("enfermeria")}/>
@@ -236,7 +264,7 @@ function HCard({icon,title,sub,color,onClick}) {
 }
 
 // ─── FAMILIAR: NUEVA RESERVA ──────────────────────────────────────
-function FamiliarView({turnos,residents,saveTurnos,setView,horarios}) {
+function FamiliarView({turnos,residents,saveTurnos,setView,horarios,bloqueos}) {
   const [step,setStep]   = useState(1);
   const [res,setRes]     = useState(null);
   const [tipo,setTipo]   = useState(null);
@@ -262,6 +290,19 @@ function FamiliarView({turnos,residents,saveTurnos,setView,horarios}) {
     if ((tipo?.id==="analisis_visita"||tipo?.id==="analisis_buscan") && !(horarios?.analisis||DEFAULT_ANALISIS_HORARIOS).includes(hi)) { setErr("⚠️ Por favor elegí un horario de análisis en el paso anterior."); return; }
     if (tipo?.id==="salida" && !hi) { setErr("⚠️ Por favor elegí el horario de salida en el paso anterior."); return; }
     if (tipo?.id==="salida" && !hf) { setErr("⚠️ Por favor elegí el horario de regreso en el paso anterior."); return; }
+    // Validar 12hs mínimas de anticipación
+    const turnoDateTime = new Date(`${fecha}T${hi}:00`);
+    const horasHastaElTurno = (turnoDateTime - new Date()) / 3600000;
+    if (horasHastaElTurno < 12) { setErr(`⚠️ Las reservas deben hacerse con al menos 12 horas de anticipación. Este turno comienza en ${Math.round(horasHastaElTurno)}hs.`); return; }
+    // Validar bloqueos de horario
+    const bloqueoActivo = (bloqueos||[]).find(b =>
+      b.residencia === res.residencia &&
+      b.fecha === fecha &&
+      b.estado !== "eliminado" &&
+      toMin(b.horaInicio) < toMin(hf) &&
+      toMin(b.horaFin) > toMin(hi)
+    );
+    if (bloqueoActivo) { setErr(`⚠️ Ese horario está bloqueado en ${res.residencia}: "${bloqueoActivo.motivo}" (${bloqueoActivo.horaInicio}–${bloqueoActivo.horaFin}). No se pueden hacer reservas en ese rango.`); return; }
     const dia = turnos.filter(t=>t.residenteId===res.id&&t.fecha===fecha&&t.estado!=="cancelado");
     const nuevo = {horaInicio:hi,horaFin:hf};
     // Bloqueo por salida existente que se superpone
@@ -621,7 +662,16 @@ function MisTurnosView({turnos,saveTurnos,setView}) {
 function EnfermeriaView({turnos,setView}) {
   const [fecha,setFecha]=useState(hoyISO());
   const [filtro,setFiltro]=useState("Todas");
-  const lista=turnos
+  // Load from localStorage as backup if turnos is empty
+  const [localTurnos, setLocalTurnos] = useState(turnos);
+  useEffect(()=>{
+    if (turnos.length > 0) { setLocalTurnos(turnos); return; }
+    try {
+      const v = localStorage.getItem("turnos-v2");
+      if (v) setLocalTurnos(JSON.parse(v));
+    } catch {}
+  },[turnos]);
+  const lista=localTurnos
     .filter(t=>t.fecha===fecha&&t.estado!=="cancelado")
     .filter(t=>filtro==="Todas"||t.residencia===filtro)
     .sort((a,b)=>toMin(a.horaInicio)-toMin(b.horaInicio));
@@ -675,15 +725,16 @@ function EnfermeriaView({turnos,setView}) {
 }
 
 // ─── ADMIN ────────────────────────────────────────────────────────
-function AdminView({turnos,residents,saveTurnos,saveResidents,setView,horarios,saveHorarios}) {
+function AdminView({turnos,residents,saveTurnos,saveResidents,setView,horarios,saveHorarios,bloqueos,saveBloqueos}) {
   const [tab,setTab]=useState("turnos");
   return (
     <div style={{maxWidth:600,margin:"0 auto",padding:16}}>
       <TopBar title="Administración" onBack={()=>setView("home")}/>
-      <TabBar tabs={[["turnos","📋 Turnos"],["residentes","👥 Residentes"],["config","⚙️ Horarios"]]} active={tab} setActive={setTab}/>
+      <TabBar tabs={[["turnos","📋 Turnos"],["residentes","👥 Residentes"],["config","⚙️ Horarios"],["bloqueos","🚫 Bloqueos"]]} active={tab} setActive={setTab}/>
       {tab==="turnos"    &&<AdminTurnos    turnos={turnos}    saveTurnos={saveTurnos}/>}
       {tab==="residentes"&&<AdminResidentes residents={residents} saveResidents={saveResidents}/>}
       {tab==="config"    &&<AdminHorarios  horarios={horarios} saveHorarios={saveHorarios} turnos={turnos}/>}
+      {tab==="bloqueos"  &&<AdminBloqueos  bloqueos={bloqueos} saveBloqueos={saveBloqueos}/>}
     </div>
   );
 }
@@ -857,6 +908,98 @@ function AdminHorarios({horarios,saveHorarios,turnos}) {
           <button onClick={agregarA} style={{background:"#2d1a2e",color:"#f472b6",border:"none",borderRadius:10,padding:"0 16px",cursor:"pointer",fontSize:16,fontWeight:"bold",fontFamily:"Georgia,serif"}}>+</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function AdminBloqueos({bloqueos,saveBloqueos}) {
+  const [fecha,setFecha]   = useState(hoyISO());
+  const [res,setRes]       = useState(RESIDENCIAS[0]);
+  const [hi,setHi]         = useState("17:00");
+  const [hf,setHf]         = useState("20:00");
+  const [motivo,setMotivo] = useState("");
+  const [msg,setMsg]       = useState("");
+
+  const activos = (bloqueos||[]).filter(b=>b.estado!=="eliminado").sort((a,b)=>a.fecha>b.fecha?1:-1);
+
+  const agregar = () => {
+    if (!motivo.trim()) { setMsg("⚠️ Escribí el motivo del bloqueo"); return; }
+    if (toMin(hf) <= toMin(hi)) { setMsg("⚠️ La hora de fin debe ser posterior a la de inicio"); return; }
+    const nuevo = {
+      id: Date.now().toString(),
+      fecha, residencia: res,
+      horaInicio: hi, horaFin: hf,
+      motivo, estado: "activo",
+      creadoEn: new Date().toISOString()
+    };
+    saveBloqueos([...(bloqueos||[]), nuevo]);
+    setMotivo(""); setMsg("✅ Bloqueo creado");
+  };
+
+  const eliminar = (id) => {
+    if (!confirm("¿Eliminar este bloqueo?")) return;
+    saveBloqueos((bloqueos||[]).map(b=>b.id===id?{...b,estado:"eliminado"}:b));
+    setMsg("✅ Bloqueo eliminado");
+  };
+
+  return (
+    <div>
+      {msg && <div style={{background:msg.startsWith("⚠️")?"#1a0a0a":"#0a1a0a",color:msg.startsWith("⚠️")?"#f87171":"#4ade80",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:15,border:`1px solid ${msg.startsWith("⚠️")?"#7f1d1d":"#166534"}`}}>{msg}</div>}
+
+      {/* Formulario nuevo bloqueo */}
+      <div style={{background:"#16213e",borderRadius:14,padding:16,marginBottom:16,border:"2px solid #334d6e"}}>
+        <div style={{color:"#f87171",fontWeight:"bold",fontSize:17,marginBottom:12}}>🚫 Nuevo bloqueo de horario</div>
+
+        <FL>Residencia</FL>
+        <select value={res} onChange={e=>setRes(e.target.value)} style={IS}>
+          {RESIDENCIAS.map(r=><option key={r} value={r}>{r}</option>)}
+        </select>
+
+        <FL>Fecha</FL>
+        <input type="date" value={fecha} min={hoyISO()} onChange={e=>setFecha(e.target.value)} style={IS}/>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <FL>Desde</FL>
+            <select value={hi} onChange={e=>setHi(e.target.value)} style={IS}>
+              {HORAS.map(h=><option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+          <div>
+            <FL>Hasta</FL>
+            <select value={hf} onChange={e=>setHf(e.target.value)} style={IS}>
+              {HORAS.filter(h=>toMin(h)>toMin(hi)).map(h=><option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <FL>Motivo (ej: Fiesta de cumpleaños, Actividad grupal)</FL>
+        <input value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej: Actividad recreativa tarde" style={IS}/>
+
+        <PBtn onClick={agregar}>🚫 Crear bloqueo</PBtn>
+      </div>
+
+      {/* Lista de bloqueos activos */}
+      <div style={{color:"#94a3b8",fontSize:13,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Bloqueos activos</div>
+      {activos.length===0 ? (
+        <p style={{color:"#475569",textAlign:"center",padding:30}}>Sin bloqueos activos</p>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {activos.map(b=>(
+            <div key={b.id} style={{background:"#16213e",border:"2px solid #7f1d1d",borderLeft:"6px solid #ef4444",borderRadius:"0 12px 12px 0",padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{color:"#f87171",fontWeight:"bold",fontSize:16}}>🚫 {b.motivo}</div>
+                  <div style={{color:"#94a3b8",fontSize:14,marginTop:3}}>{b.residencia}</div>
+                  <div style={{color:"#64748b",fontSize:13,marginTop:2}}>📅 {fmt(b.fecha)} · {b.horaInicio}–{b.horaFin}</div>
+                </div>
+                <button onClick={()=>eliminar(b.id)} style={{background:"#1a0a0a",color:"#f87171",border:"1px solid #7f1d1d",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontSize:12,fontFamily:"Georgia,serif"}}>Eliminar</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
